@@ -31,17 +31,22 @@ jobs:
       - name: Trigger Stack Apply
         id: apply
         run: |
-          cat $HOME/.oci/config
-          ~/bin/oci resource-manager job create-apply-job \
+          OUTPUT=$(~/bin/oci resource-manager job create-apply-job \
             --stack-id ${{ secrets.OCI_STACK_OCID }} \
             --execution-plan-strategy AUTO_APPROVED \
             --wait-for-state SUCCEEDED \
             --wait-for-state FAILED \
             --max-wait-seconds 120 \
-            --region eu-zurich-1 && echo "status=success" >> $GITHUB_OUTPUT || echo "status=failed" >> $GITHUB_OUTPUT
+            --region eu-zurich-1 2>&1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q '"lifecycle-state": "SUCCEEDED"'; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+          fi
 
       - name: Notify Success
         if: steps.apply.outputs.status == 'success'
         run: |
-          echo "🎉 INSTANCE CREATED SUCCESSFULLY! Go disable this workflow now."
+          echo "INSTANCE CREATED SUCCESSFULLY! Go disable this workflow now."
           exit 1
