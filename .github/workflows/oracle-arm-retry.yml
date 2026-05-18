@@ -25,7 +25,7 @@ jobs:
           fingerprint=${{ secrets.OCI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_TENANCY_OCID }}
           region=eu-zurich-1
-          key_file=$HOME/.oci/oci_api_key.pem
+          key_file=$(echo $HOME)/.oci/oci_api_key.pem
           EOF
 
       - name: Trigger Stack Apply
