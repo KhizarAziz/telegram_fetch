@@ -1,0 +1,52 @@
+name: Oracle ARM Instance Retry
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  retry-instance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install OCI CLI
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p $HOME/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > $HOME/.oci/oci_api_key.pem
+          chmod 600 $HOME/.oci/oci_api_key.pem
+          cat > $HOME/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=eu-zurich-1
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+
+      - name: Trigger Stack Apply
+        id: apply
+        run: |
+          OUTPUT=$(~/bin/oci resource-manager job create-apply-job \
+            --stack-id ${{ secrets.OCI_STACK_OCID }} \
+            --execution-plan-strategy AUTO_APPROVED \
+            --wait-for-state SUCCEEDED \
+            --wait-for-state FAILED \
+            --max-wait-seconds 120 \
+            --region eu-zurich-1 2>&1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q '"lifecycle-state": "SUCCEEDED"'; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify Success
+        if: steps.apply.outputs.status == 'success'
+        run: |
+          echo "🎉 INSTANCE CREATED SUCCESSFULLY! Go disable this workflow now."
+          exit 1
